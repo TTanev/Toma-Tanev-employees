@@ -1,0 +1,202 @@
+<!-- FrontEnd UI "parsing" a CSV file with employee and projects data to determine longest simultaneous working pair
+Алгоритъм
+1.минава по ред всички служители
+2. като влезе в първия служител сравнява първия му проект с
+3. извърта всички служители
+4. извърта всички техни проекти и ги сравнява с първия проект (1.2.)
+5. ако имат общ проект сравнява дните заедно
+6. ако имат дни заедно ги вписва/ добавя в масива на i-тия слж (1.) с колеги и общи работни дни с тях
+7. сортира масива попълнен в 6 и оставя в него само колегата с най-мн общи дни
+8. започва наново сравнявайки вече втория с третия 
+
+TODO да се разбие на взаимодействащи функции
+-->
+
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Longest Working Employee</title>
+    <base href="/">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            background-color: lightgray;
+            text-align: center;
+        }
+
+        .content {
+            position: relative;
+            width: 50%;
+            height: 50%;
+            margin: 10% auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="content">
+        <h1>Please, choose a CSV file with employee project records</h1>
+        <form id="csvForm" method="POST">
+            <label for="chooseCSV">
+                <input id="chooseCSV" name="csvFile" type="file" accept=".csv" />
+                <input type="submit" value="Save">
+        </form>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let csvInput = document.getElementById("chooseCSV")
+        let results = document.getElementById("results")
+        let form = document.getElementById("csvForm")
+
+        csvInput.addEventListener("change", function () {
+            if (this.files && this.files[0]) {
+                var myFile = this.files[0];
+                var reader = new FileReader();
+
+                reader.addEventListener('load', function (e) {
+
+                    let { header, entries } = getHeaderAndEntries(e.target.result)
+
+                    let myEmployeeObjArr = createEmployeeObjectArray(entries)
+
+                    let myEmployeeObjArrCompared = compareEmployees(myEmployeeObjArr)
+
+
+                    let tableHTML = createTable(e.target.result)
+                    results.appendChild(tableHTML)
+                });
+
+                reader.readAsBinaryString(myFile);
+            }
+        });
+
+        function getHeaderAndEntries(data) {
+            let d = new Date()
+            currentTime = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2)
+            let csvData = data.slice().replace(/\n/g, ", ").replace(/\s/g, "").replace("NULL", currentTime).split(',')
+
+            let header = csvData.slice(0, 4)
+            let entries = csvData.slice(4)
+
+            return { header, entries }
+        }
+
+        function createTable(data) {
+            let { header, entries } = getHeaderAndEntries(data)
+
+            let table = document.createElement('table')
+            let th = document.createElement('th')
+            let tr = document.createElement('tr')
+            let td = document.createElement('td')
+
+            table.innerHTML = (`
+                <th>
+                    <td>${header[0]}</td>
+                    <td>${header[1]}</td>
+                    <td>${header[2]}</td>
+                    <td>${header[3]}</td>
+                </th>`)
+
+            // TODO create table with longest working employee projects 
+
+            return table
+        }
+
+        //emplObjArr = [ { employeeId, projects: [[ projectId, dateFrom, dateTo ], ... ], longestProject: [ collegue, daysTogether ] }, ... ]
+
+        function createEmployeeObjectArray(data) {
+            let employeeObjectsArray = []
+            let entries = data
+
+            for (let i = 0; i < entries.length; i += 4) {
+                let employeeId = entries[i]
+                let employeeExists = false
+                let currentProject = [entries[i + 1], entries[i + 2], entries[i + 3]]
+
+                for (let j = 0; j < entries.length; j++) {
+
+                    if (!employeeObjectsArray[j]) {
+                        break
+                    }
+
+                    if (employeeObjectsArray[j].employeeId == employeeId) {
+
+                        employeeObjectsArray[j].projects.push(currentProject)
+                        employeeExists = true
+                        break
+                    }
+                }
+
+                if (!employeeExists) {
+                    let employeeObject = { employeeId: entries[i], projects: [currentProject], longestProject: [] }
+                    employeeObjectsArray.push(employeeObject)
+                }
+            }
+
+            return employeeObjectsArray
+        }
+
+        function overlapingDays(date1start, date1end, date2start, date2end) {
+            let d1s = new Date(date1start)
+            let d1e = new Date(date1end)
+            let d2s = new Date(date2start)
+            let d2e = new Date(date2end)
+            let overlapingDays = Math.max(0, Math.min(d2e, d1e) - Math.max(d1s, d2s) + 1)
+
+            return overlapingDays
+        }
+
+        function compareEmployees(emplObjArr) {
+            for (let i = 0; i < emplObjArr.length; i++) {
+                // before end of the employee top loop should find the: let longestPartner = [id, days]
+                let partnersDaysArr = []
+
+                //going through all projects to accummulate all matching work times
+                for (project of emplObjArr[i].projects) {
+
+                    //comparing each next employee's projects with the current project of the current employee
+                    for (let j = i + 1; j < emplObjArr.length; j++) {
+
+                        //looping each project of the next employee
+                        for (let k = 0; k < emplObjArr[j].projects.length; k++) {
+
+                            //comparing cur project of cur employee matches to main employee cur project
+                            if (emplObjArr[j].projects[k].includes(project[0])) {
+                                //comparing if they worked simultaniously
+                                let daysTogetherOnProject = overlapingDays(project[1], project[2], emplObjArr[j].projects[k][1], emplObjArr[j].projects[k][2])
+
+                                if (daysTogetherOnProject) {
+                                    //checks if partnersDaysArr is empty so it doesnt loop it
+                                    if (!partnersDaysArr.length) {
+                                        partnersDaysArr.push([emplObjArr[j].employeeId, daysTogetherOnProject])
+                                    } else {
+                                        //goes through all partnersDays pairs to find the current partner and 
+                                        //add to the days worked together regardless of project, then stopps the loop 
+                                        for (partnerDaysPair of partnersDaysArr) {
+                                            if (partnerDaysPair[0] == emplObjArr[j].employeeId) {
+                                                partnerDaysPair[1] += partnersDaysArr
+
+                                                break
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+                // TODO sort partnersDaysArr and push 
+                emplObjArr[i].longestProject.push(partnersDaysArr)
+            }
+
+            return emplObjArr
+        }
+
+    </script>
+</body>
+
+</html>
